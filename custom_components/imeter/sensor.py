@@ -1,0 +1,98 @@
+﻿"""Platform for sensor integration."""
+from homeassistant.helpers.entity import Entity
+import voluptuous as vol
+import homeassistant.helpers.config_validation as cv
+from homeassistant.components.sensor import PLATFORM_SCHEMA
+import logging
+
+_LOGGER = logging.getLogger(__name__)
+
+CONF_HOST = 'host'
+CONF_MODEL = 'model'
+CONF_NAME = 'name'
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_HOST): cv.string,
+    vol.Optional(CONF_MODEL, default='WEM3080'): cv.string,
+    vol.Optional(CONF_NAME, default='iMeter'): cv.string
+})
+
+def setup_platform(hass, config, add_entities, discovery_info=None):
+    """Set up the sensor platform."""
+    '''
+    _LOGGER.error(config['model'])
+    if config['model'] == 'WEM3162':
+    	print('WEM3162')
+    if config['model'] == 'WEM3080':
+    	print('wem3080')
+    if config['model'] == 'WEM3080T':
+    	print('WEM3080T')
+    '''
+    add_entities([IMeterSensor(hass, config)])
+
+
+class IMeterSensor(Entity):
+    """Representation of a Sensor."""
+
+    def __init__(self, hass, config):
+        """Initialize the sensor."""
+        try:
+        	self._model = config["model"]
+        except:
+        	_LOGGER.error("未设置型号WEM3162，WEM3080，WEM3080T，默认型号WEM3080单项电表")
+        	self._model = "WEM3080"
+        try:
+        	self._host = config["host"]
+        except:
+        	_LOGGER.error("没有设置IP地址")
+        self._state = None
+        self._data = None
+        self._name = config[CONF_NAME]
+        self._hass = hass
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return self._name
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._state
+
+    @property
+    def device_class(self):
+        return 'power'
+    
+    @property
+    def data(self):
+        return self._data
+
+    def update(self):
+        """Fetch new state data for the sensor.
+
+        This is the only method that should fetch new data for Home Assistant.
+        """
+        import requests
+        import json
+        from requests.compat import urljoin
+        dev_ip = self._host
+        base_url = urljoin('http://admin:admin@'+dev_ip, '/monitorjson')
+        try:
+        	r = requests.get(base_url)
+        	json_response = json.loads(r.text)
+        	if self._model == 'WEM3162':
+        		print('WEM3162')
+        		self._data = json_response['data']
+        		self._state = self._data[2]
+        	if self._model == 'WEM3080':
+        		print('wem3080')
+        		self._data = json_response['Data']
+        		self._state = self._data[2]
+        	if self._model == 'WEM3080T':
+        		print('WEM3080T')
+        		self._data = json_response['Datas']
+        		self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
+        except requests.exceptions.RequestException as e:
+        	self._state = 'offline'
+        
