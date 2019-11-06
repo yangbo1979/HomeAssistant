@@ -49,6 +49,7 @@ class IMeterSensor(Entity):
         self._data = None
         self._name = config[CONF_NAME]
         self._hass = hass
+        self._hass.custom_attributes = {}
 
     @property
     def name(self):
@@ -72,6 +73,11 @@ class IMeterSensor(Entity):
     @property
     def data(self):
         return self._data
+    
+    @property
+    def device_state_attributes(self):
+        """Return the state attributes of the sensor."""
+        return self._hass.custom_attributes
 
     def update(self):
         """Fetch new state data for the sensor.
@@ -81,6 +87,8 @@ class IMeterSensor(Entity):
         import requests
         import json
         from requests.compat import urljoin
+        
+        attributes = {}
         dev_ip = self._host
         base_url = urljoin('http://admin:admin@'+dev_ip, '/monitorjson')
         try:
@@ -98,6 +106,10 @@ class IMeterSensor(Entity):
         		#print('WEM3080T')
         		self._data = json_response['Datas']
         		self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
+        	attributes['data'] = self._data
+        	#attributes['mac'] = json_response['mac']
+        	#attributes['sn'] = json_response['SN']
+        	self._hass.custom_attributes = attributes
         except requests.exceptions.RequestException as e:
         	self._state = 'offline'
         
