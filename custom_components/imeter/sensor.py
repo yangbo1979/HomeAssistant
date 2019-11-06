@@ -107,8 +107,14 @@ class IMeterSensor(Entity):
         		self._data = json_response['Datas']
         		self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
         	attributes['data'] = self._data
-        	#attributes['mac'] = json_response['mac']
-        	#attributes['sn'] = json_response['SN']
+        	try:
+        		attributes['mac'] = json_response['mac']
+        	except:
+        		pass
+        	try:
+        		attributes['sn'] = json_response['SN']
+        	except:
+        		pass
         	self._hass.custom_attributes = attributes
         except requests.exceptions.RequestException as e:
         	self._state = 'offline'
