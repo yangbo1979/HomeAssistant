@@ -39,12 +39,12 @@ class IMeterSensor(Entity):
         try:
         	self._model = config["model"]
         except:
-        	_LOGGER.error("未设置型号WEM3162，WEM3080，WEM3080T，默认型号WEM3080单项电表")
+        	_LOGGER.error("model not set:WEM3162，WEM3080，WEM3080T，default to WEM3080")
         	self._model = "WEM3080"
         try:
         	self._host = config["host"]
         except:
-        	_LOGGER.error("没有设置IP地址")
+        	_LOGGER.error("host not set")
         self._state = None
         self._data = None
         self._name = config[CONF_NAME]
@@ -63,7 +63,12 @@ class IMeterSensor(Entity):
     @property
     def device_class(self):
         return 'power'
-    
+        
+    @property
+    def unit_of_measurement(self):
+        """Return the unit of measurement this sensor expresses itself in."""
+        return 'W'
+        
     @property
     def data(self):
         return self._data
@@ -82,15 +87,15 @@ class IMeterSensor(Entity):
         	r = requests.get(base_url)
         	json_response = json.loads(r.text)
         	if self._model == 'WEM3162':
-        		print('WEM3162')
+        		#print('WEM3162')
         		self._data = json_response['data']
         		self._state = self._data[2]
         	if self._model == 'WEM3080':
-        		print('wem3080')
+        		#print('WEM3080')
         		self._data = json_response['Data']
         		self._state = self._data[2]
         	if self._model == 'WEM3080T':
-        		print('WEM3080T')
+        		#print('WEM3080T')
         		self._data = json_response['Datas']
         		self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
         except requests.exceptions.RequestException as e:
