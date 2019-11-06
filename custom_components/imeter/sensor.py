@@ -94,6 +94,7 @@ class IMeterSensor(Entity):
         try:
         	r = requests.get(base_url)
         	json_response = json.loads(r.text)
+        	'''
         	if self._model == 'WEM3162':
         		#print('WEM3162')
         		self._data = json_response['data']
@@ -106,6 +107,25 @@ class IMeterSensor(Entity):
         		#print('WEM3080T')
         		self._data = json_response['Datas']
         		self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
+        	'''
+        	try:
+        		self._data = json_response['data']
+        		self._state = self._data[2]
+        	except:
+        		#_LOGGER.error('not 3162')
+        		try:
+        			self._data = json_response['Data']
+        			self._state = self._data[2]
+        		except:
+        			#_LOGGER.error('not 3080')
+        			try:
+        				self._data = json_response['Datas']
+        				self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
+        			except:
+        				_LOGGER.error('unrecognizable device')
+        				pass
+        			pass
+        		pass
         	attributes['data'] = self._data
         	try:
         		attributes['mac'] = json_response['mac']

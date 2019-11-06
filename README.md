@@ -10,7 +10,6 @@ To use the sensors in your installation, add the following to your configuration
 sensor:
   - platform: imeter
     host: IP_ADDRESS
-    model: WEM3080T
 
 CONFIGURATION VARIABLES
 
@@ -19,5 +18,5 @@ host
 The IP address of your iMeter system.
 
 model
-(string)(Optional，WEM3080 as default)
+(string)(Optional，auto recognize as default)
 WEM3162 WEM3080 WEM3080T
