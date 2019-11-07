@@ -28,10 +28,10 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     if config['model'] == 'WEM3080T':
     	print('WEM3080T')
     '''
-    add_entities([IMeterSensor(hass, config)])
+    add_entities([IamMeterSensor(hass, config)])
 
 
-class IMeterSensor(Entity):
+class IamMeterSensor(Entity):
     """Representation of a Sensor."""
 
     def __init__(self, hass, config):

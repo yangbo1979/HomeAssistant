@@ -8,7 +8,7 @@ To use the sensors in your installation, add the following to your configuration
 
 # Example configuration.yaml entry
 sensor:
-  - platform: imeter
+  - platform: iammeter
     host: IP_ADDRESS
 
 CONFIGURATION VARIABLES
