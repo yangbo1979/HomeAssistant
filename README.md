@@ -9,14 +9,14 @@ To use the sensors in your installation, add the following to your configuration
 # Example configuration.yaml entry
 sensor:
   - platform: iammeter
-    host: IP_ADDRESS
+    ip_address: IP_ADDRESS
+    name: your device name
 
 CONFIGURATION VARIABLES
 
-host
+ip_address
 (string)(Required)
 The IP address of your iMeter system.
 
-model
-(string)(Optional，auto recognize as default)
-WEM3162 WEM3080 WEM3080T
+name
+(string)(Required)

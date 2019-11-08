@@ -1,8 +1,8 @@
 {
-  "domain": "your_domain_name",
-  "name": "Your Integration",
-  "documentation": "https://www.example.com",
-  "dependencies": [],
-  "codeowners": ["@yangbo1979"],
-  "requirements": []
-}
+    "domain": "iammeter",
+    "name": "IamMeter",
+    "documentation": "",
+    "requirements": [],
+    "dependencies": [],
+    "codeowners": ["@yangbo1979"]
+  }

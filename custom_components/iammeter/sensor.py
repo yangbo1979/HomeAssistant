@@ -1,141 +1,421 @@
-﻿"""Platform for sensor integration."""
-from homeassistant.helpers.entity import Entity
+"""Support for iammeter via local API."""
+import asyncio
+
+from datetime import timedelta
+import logging
+
 import voluptuous as vol
+
+from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT ,CONF_NAME
+from homeassistant.helpers.entity import Entity
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
-import logging
+from homeassistant.exceptions import PlatformNotReady
+from homeassistant.helpers.event import async_track_time_interval
+import json
+from collections import namedtuple
+
+import aiohttp
+import voluptuous as vol
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_HOST = 'host'
-CONF_MODEL = 'model'
-CONF_NAME = 'name'
+import json
+from collections import namedtuple
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_HOST): cv.string,
-    vol.Optional(CONF_MODEL, default='WEM3080'): cv.string,
-    vol.Optional(CONF_NAME, default='iMeter'): cv.string
-})
+import aiohttp
+import voluptuous as vol
+import async_timeout
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Set up the sensor platform."""
-    '''
-    _LOGGER.error(config['model'])
-    if config['model'] == 'WEM3162':
-    	print('WEM3162')
-    if config['model'] == 'WEM3080':
-    	print('wem3080')
-    if config['model'] == 'WEM3080T':
-    	print('WEM3080T')
-    '''
-    add_entities([IamMeterSensor(hass, config)])
+class IamMeterError(Exception):
+    """Indicates error communicating with iammeter"""
 
 
-class IamMeterSensor(Entity):
+class DiscoveryError(Exception):
+    """Raised when unable to discover iammeter"""
+
+
+IamMeterResponse = namedtuple('IamMeterResponse',
+                              'data, serial_number, mac')
+
+
+class IamMeter:
+    """Base wrapper around iammeter HTTP API"""
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+    async def get_data(self):
+        try:
+            data = await self.make_request(
+                self.host, self.port
+            )
+        #except aiohttp.ClientError as ex:
+            #msg = "Could not connect to iammeter endpoint"
+            #raise iammeterError(msg) from ex
+        except ValueError as ex:
+            msg = "Received non-JSON data from iammeter endpoint"
+            raise IamMeterError(msg) from ex
+        except vol.Invalid as ex:
+            msg = "Received malformed JSON from iammeter"
+            raise IamMeterError(msg) from ex
+        return data
+
+    @classmethod
+    async def make_request(cls, host, port):
+        """
+        Return instance of 'iammeterResponse'
+        Raise exception if unable to get data
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def sensor_map(cls):
+        """
+        Return sensor map
+        """
+        raise NotImplementedError()
+'''
+    @staticmethod
+    def map_response(resp_data, sensor_map):
+        return {
+            f"{sensor_name}": resp_data[i]
+            for sensor_name, (i, _)
+            in sensor_map.items()
+        }
+'''
+
+async def discover(host, port) -> IamMeter:
+    for iammeter in REGISTRY:
+        i = iammeter(host, port)
+        try:
+            await i.get_data()
+            return i
+        except IamMeterError:
+            pass
+    raise DiscoveryError()
+    
+class WEM3162(IamMeter):
+    __schema = vol.Schema({
+    	vol.Required('data'): list,
+    }, extra=vol.REMOVE_EXTRA)
+	#Voltage,Current,Power,ImportEnergy,ExportGrid,frequency,PF
+    __sensor_map = {
+        'Voltage':                (0, 'V'),
+        'Current':                (1, 'A'),
+        'Power':                  (2, 'W'),
+        'ImportEnergy':           (3, 'kWh'),
+
+        'ExportGrid':             (4, 'kWh'),
+    }
+    
+    @staticmethod
+    def map_response(resp_data, sensor_map):
+        return {
+            f"{sensor_name}": resp_data[i]
+            for sensor_name, (i, _)
+            in sensor_map.items()
+        }
+
+    @classmethod
+    async def make_request(cls, host, port=80):
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(host, port)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as req:
+                resp = await req.read()
+        raw_json = resp.decode("utf-8")
+        json_response = json.loads(raw_json)
+        #_LOGGER.error(json_response)
+        response = cls.__schema(json_response)
+        #_LOGGER.error(cls.map_response(response['data'], cls.__sensor_map))
+        cls.dev_type = "WEM3162"
+        return IamMeterResponse(
+            data=cls.map_response(response['data'], cls.__sensor_map)
+        )
+
+    @classmethod
+    def sensor_map(cls):
+        """
+        Return sensor map
+        """
+        return cls.__sensor_map
+
+
+class WEM3080(IamMeter):
+    __schema = vol.Schema({
+    	vol.Required('SN'): str,
+    	vol.Required('mac'): str,
+    	vol.Required('Data'): list,
+    }, extra=vol.REMOVE_EXTRA)
+	#Voltage,Current,Power,ImportEnergy,ExportGrid,frequency,PF
+    __sensor_map = {
+        'Voltage':                (0, 'V'),
+        'Current':                (1, 'A'),
+        'Power':                  (2, 'W'),
+        'ImportEnergy':           (3, 'kWh'),
+
+        'ExportGrid':             (4, 'kWh'),
+        'Frequency':              (5, 'Hz'),
+        'PF':                     (6, '%'),
+
+    }
+    
+    @staticmethod
+    def map_response(resp_data, sensor_map):
+        return {
+            f"{sensor_name}": resp_data[i]
+            for sensor_name, (i, _)
+            in sensor_map.items()
+        }
+
+    @classmethod
+    async def make_request(cls, host, port=80):
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(host, port)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as req:
+                resp = await req.read()
+        raw_json = resp.decode("utf-8")
+        json_response = json.loads(raw_json)
+        #_LOGGER.error(json_response)
+        response = cls.__schema(json_response)
+        #_LOGGER.error(cls.map_response(response['Data'], cls.__sensor_map))
+        cls.dev_type = "WEM3080"
+        return IamMeterResponse(
+            data=cls.map_response(response['Data'], cls.__sensor_map),
+            serial_number=response['SN'],
+            mac=response['mac']
+        )
+
+    @classmethod
+    def sensor_map(cls):
+        """
+        Return sensor map
+        """
+        return cls.__sensor_map
+
+
+
+class WEM3080T(IamMeter):
+    __schema = vol.Schema({
+    	vol.Required('SN'): str,
+    	vol.Required('mac'): str,
+    	vol.Required('Datas'): list,
+    }, extra=vol.REMOVE_EXTRA)
+	#Voltage,Current,Power,ImportEnergy,ExportGrid,frequency,PF
+    __sensor_map = {
+        'Voltage_A':                (0,0, 'V'),
+        'Current_A':                (0,1, 'A'),
+        'Power_A':                  (0,2, 'W'),
+        'ImportEnergy_A':           (0,3, 'kWh'),
+
+        'ExportGrid_A':             (0,4, 'kWh'),
+        'Frequency_A':              (0,5, 'Hz'),
+        'PF_A':                     (0,6, '%'),
+
+        'Voltage_B':                (1,0, 'V'),
+        'Current_B':                (1,1, 'A'),
+        'Power_B':                  (1,2, 'W'),
+        'ImportEnergy_B':           (1,3, 'kWh'),
+
+        'ExportGrid_B':             (1,4, 'kWh'),
+        'Frequency_B':              (1,5, 'Hz'),
+        'PF_B':                     (1,6, '%'),
+        
+        'Voltage_C':                (2,0, 'V'),
+        'Current_C':                (2,1, 'A'),
+        'Power_C':                  (2,2, 'W'),
+        'ImportEnergy_C':           (2,3, 'kWh'),
+
+        'ExportGrid_C':             (2,4, 'kWh'),
+        'Frequency_C':              (2,5, 'Hz'),
+        'PF_C':                     (2,6, '%'),
+    }
+    
+    @staticmethod
+    def map_response(resp_data, sensor_map):
+        return {
+            f"{sensor_name}": resp_data[i][j]
+            for sensor_name, (i,j,_)
+            in sensor_map.items()
+        }
+
+    @classmethod
+    async def make_request(cls, host, port=80):
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(host, port)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as req:
+                resp = await req.read()
+        raw_json = resp.decode("utf-8")
+        json_response = json.loads(raw_json)
+        #_LOGGER.error(json_response)
+        response = cls.__schema(json_response)
+        #_LOGGER.error(cls.map_response(response['Datas'], cls.__sensor_map))
+        cls.dev_type = "WEM3080T"
+        return IamMeterResponse(
+            data=cls.map_response(response['Datas'], cls.__sensor_map),
+            serial_number=response['SN'],
+            mac=response['mac']
+        )
+
+    @classmethod
+    def sensor_map(cls):
+        """
+        Return sensor map
+        """
+        return cls.__sensor_map
+
+
+# registry of iammeters
+REGISTRY = [WEM3080,WEM3080T,WEM3162]
+
+
+REQUEST_TIMEOUT = 5
+
+
+async def rt_request(inv, retry, t_wait=0):
+    """Make call to iammeter endpoint."""
+    if t_wait > 0:
+        msg = "Timeout connecting to iammeter, waiting %d to retry."
+        _LOGGER.error(msg, t_wait)
+        await asyncio.sleep(t_wait)
+    new_wait = (t_wait*2)+5
+    retry = retry - 1
+    try:
+        with async_timeout.timeout(REQUEST_TIMEOUT):
+            return await inv.get_data()
+    except asyncio.TimeoutError:
+        if retry > 0:
+            return await rt_request(inv,
+                                    retry,
+                                    new_wait)
+        _LOGGER.error("Too many timeouts connecting to IamMeter.")
+        raise
+
+
+async def real_time_api(ip_address, port=80):
+    i = await discover(ip_address, port)
+    return RealTimeAPI(i)
+
+
+class RealTimeAPI:
+    """iammeter real time API"""
+    # pylint: disable=too-few-public-methods
+
+    def __init__(self, inv):
+        """Initialize the API client."""
+        self.iammeter = inv
+
+    async def get_data(self):
+        """Query the real time API"""
+        return await rt_request(self.iammeter,
+                                3)
+
+
+DEFAULT_PORT = 80
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Required(CONF_IP_ADDRESS): cv.string,
+        vol.Required(CONF_NAME): cv.string,
+        vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
+    }
+)
+
+SCAN_INTERVAL = timedelta(seconds=30)
+
+
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Platform setup."""
+    api = await real_time_api(config[CONF_IP_ADDRESS], config[CONF_PORT])
+    endpoint = RealTimeDataEndpoint(hass, api)
+    resp = await api.get_data()
+    serial = resp.serial_number
+    hass.async_add_job(endpoint.async_refresh)
+    async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
+    #_LOGGER.error(api.iammeter.dev_type)
+    devices = []
+    if api.iammeter.dev_type == "WEM3080":
+	    for sensor, (idx, unit) in api.iammeter.sensor_map().items():
+	        uid = f"{serial}-{idx}"
+	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+    if api.iammeter.dev_type == "WEM3080T":
+	    for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
+	        uid = f"{serial}-{row}-{idx}"
+	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+    if api.iammeter.dev_type == "WEM3162":
+	    for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
+	        uid = f"{serial}-{idx}"
+	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+    endpoint.sensors = devices
+    async_add_entities(devices)
+
+
+class RealTimeDataEndpoint:
     """Representation of a Sensor."""
 
-    def __init__(self, hass, config):
+    def __init__(self, hass, api):
         """Initialize the sensor."""
-        try:
-        	self._model = config["model"]
-        except:
-        	_LOGGER.error("model not set:WEM3162，WEM3080，WEM3080T，default to WEM3080")
-        	self._model = "WEM3080"
-        try:
-        	self._host = config["host"]
-        except:
-        	_LOGGER.error("host not set")
-        self._state = None
-        self._data = None
-        self._name = config[CONF_NAME]
-        self._hass = hass
-        self._hass.custom_attributes = {}
+        self.hass = hass
+        self.api = api
+        self.ready = asyncio.Event()
+        self.sensors = []
 
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
+    async def async_refresh(self, now=None):
+        """Fetch new state data for the sensor.
+        This is the only method that should fetch new data for Home Assistant.
+        """
+        try:
+            api_response = await self.api.get_data()
+            self.ready.set()
+        except IamMeterError:
+            if now is not None:
+                self.ready.clear()
+                return
+            raise PlatformNotReady
+        data = api_response.data
+        for sensor in self.sensors:
+            if sensor.key in data:
+                sensor.value = data[sensor.key]
+                sensor.async_schedule_update_ha_state()
+
+
+class IamMeter(Entity):
+    """Class for a sensor."""
+
+    def __init__(self, uid, serial, key, unit,dev_name):
+        """Initialize an iammeter sensor."""
+        self.uid = uid
+        self.serial = serial
+        self.key = key
+        self.value = None
+        self.unit = unit
+        self.dev_name = dev_name
+        self.dev_type = "WEM3080"
 
     @property
     def state(self):
-        """Return the state of the sensor."""
-        return self._state
+        """State of this iammeter attribute."""
+        return self.value
 
     @property
-    def device_class(self):
-        return 'power'
-        
+    def unique_id(self):
+        """Return unique id."""
+        return self.uid
+
+    @property
+    def name(self):
+        """Name of this iammeter attribute."""
+        return f"{self.dev_name} {self.key}"
+
     @property
     def unit_of_measurement(self):
-        """Return the unit of measurement this sensor expresses itself in."""
-        return 'W'
-        
-    @property
-    def data(self):
-        return self._data
-    
-    @property
-    def device_state_attributes(self):
-        """Return the state attributes of the sensor."""
-        return self._hass.custom_attributes
+        """Return the unit of measurement."""
+        return self.unit
 
-    def update(self):
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        import requests
-        import json
-        from requests.compat import urljoin
-        
-        attributes = {}
-        dev_ip = self._host
-        base_url = urljoin('http://admin:admin@'+dev_ip, '/monitorjson')
-        try:
-        	r = requests.get(base_url)
-        	json_response = json.loads(r.text)
-        	'''
-        	if self._model == 'WEM3162':
-        		#print('WEM3162')
-        		self._data = json_response['data']
-        		self._state = self._data[2]
-        	if self._model == 'WEM3080':
-        		#print('WEM3080')
-        		self._data = json_response['Data']
-        		self._state = self._data[2]
-        	if self._model == 'WEM3080T':
-        		#print('WEM3080T')
-        		self._data = json_response['Datas']
-        		self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
-        	'''
-        	try:
-        		self._data = json_response['data']
-        		self._state = self._data[2]
-        	except:
-        		#_LOGGER.error('not 3162')
-        		try:
-        			self._data = json_response['Data']
-        			self._state = self._data[2]
-        		except:
-        			#_LOGGER.error('not 3080')
-        			try:
-        				self._data = json_response['Datas']
-        				self._state = self._data[0][2]+self._data[1][2]+self._data[2][2]
-        			except:
-        				_LOGGER.error('unrecognizable device')
-        				pass
-        			pass
-        		pass
-        	attributes['data'] = self._data
-        	try:
-        		attributes['mac'] = json_response['mac']
-        	except:
-        		pass
-        	try:
-        		attributes['sn'] = json_response['SN']
-        	except:
-        		pass
-        	self._hass.custom_attributes = attributes
-        except requests.exceptions.RequestException as e:
-        	self._state = 'offline'
-        
+    @property
+    def should_poll(self):
+        """No polling needed."""
+        return False                                                                                                                                                                                                                                                                                          
