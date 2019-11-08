@@ -337,21 +337,24 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     endpoint = RealTimeDataEndpoint(hass, api)
     resp = await api.get_data()
     serial = resp.serial_number
+    mac = resp.mac
     hass.async_add_job(endpoint.async_refresh)
     async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
     #_LOGGER.error(api.iammeter.dev_type)
     devices = []
     if api.iammeter.dev_type == "WEM3080":
 	    for sensor, (idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{serial}-{idx}"
+	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{idx}"
+	        #_LOGGER.error(f"3080 uid:{uid}")
 	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
     if api.iammeter.dev_type == "WEM3080T":
 	    for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{serial}-{row}-{idx}"
+	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{row}-{idx}"
+	        #_LOGGER.error(f"3080T uid:{uid}")
 	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
     if api.iammeter.dev_type == "WEM3162":
-	    for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{serial}-{idx}"
+	    for sensor, (idx,unit) in api.iammeter.sensor_map().items():
+	        uid = f"{config[CONF_NAME]}-{idx}"
 	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
     endpoint.sensors = devices
     async_add_entities(devices)
