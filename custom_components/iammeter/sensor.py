@@ -50,15 +50,18 @@ class IamMeter:
             data = await self.make_request(
                 self.host, self.port
             )
-        #except aiohttp.ClientError as ex:
-            #msg = "Could not connect to iammeter endpoint"
-            #raise iammeterError(msg) from ex
+        except aiohttp.ClientError as ex:
+            msg = "Could not connect to iammeter endpoint"
+            raise IamMeterError(msg) from ex
         except ValueError as ex:
             msg = "Received non-JSON data from iammeter endpoint"
             raise IamMeterError(msg) from ex
         except vol.Invalid as ex:
             msg = "Received malformed JSON from iammeter"
             raise IamMeterError(msg) from ex
+        except:
+        	msg = "error"
+        	raise IamMeterError("error")
         return data
 
     @classmethod
@@ -173,12 +176,13 @@ class WEM3080(IamMeter):
     async def make_request(cls, host, port=80):
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
+        #_LOGGER.error(url)
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as req:
                 resp = await req.read()
         raw_json = resp.decode("utf-8")
         json_response = json.loads(raw_json)
-        #_LOGGER.error(json_response)
+        _LOGGER.error(json_response)
         response = cls.__schema(json_response)
         #_LOGGER.error(cls.map_response(response['Data'], cls.__sensor_map))
         cls.dev_type = "WEM3080"
