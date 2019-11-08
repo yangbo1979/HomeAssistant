@@ -159,8 +159,6 @@ class WEM3080(IamMeter):
         'ImportEnergy':           (3, 'kWh'),
 
         'ExportGrid':             (4, 'kWh'),
-        'Frequency':              (5, 'Hz'),
-        'PF':                     (6, '%'),
 
     }
     
@@ -416,6 +414,10 @@ class IamMeter(Entity):
     def name(self):
         """Name of this iammeter attribute."""
         return f"{self.dev_name} {self.key}"
+        
+    @property
+    def icon(self):
+        return "mdi:flash"
 
     @property
     def unit_of_measurement(self):
