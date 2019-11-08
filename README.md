@@ -14,7 +14,7 @@ sensor:
 
 CONFIGURATION VARIABLES
 
-ip_address
+host
 (string)(Required)
 The IP address of your iMeter system.
 

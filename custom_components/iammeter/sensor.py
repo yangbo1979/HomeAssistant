@@ -6,7 +6,7 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT ,CONF_NAME
+from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT ,CONF_NAME,CONF_HOST
 from homeassistant.helpers.entity import Entity
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
@@ -318,7 +318,7 @@ DEFAULT_PORT = 80
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_IP_ADDRESS): cv.string,
+        vol.Required(CONF_HOST): cv.string,
         vol.Required(CONF_NAME): cv.string,
         vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
     }
@@ -329,7 +329,7 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Platform setup."""
-    api = await real_time_api(config[CONF_IP_ADDRESS], config[CONF_PORT])
+    api = await real_time_api(config[CONF_HOST], config[CONF_PORT])
     endpoint = RealTimeDataEndpoint(hass, api)
     resp = await api.get_data()
     serial = resp.serial_number
