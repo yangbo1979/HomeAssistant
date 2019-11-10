@@ -105,11 +105,11 @@ async def discover(host, port) -> IamMeter:
             #_LOGGER.error(json_data)
             #json_response = json.loads(json_data)
             if json_data.has_key('data'):
-                _LOGGER.error('3162')
+                _LOGGER.info('3162')
             if json_data.has_key('Data'):
-                _LOGGER.error('3080')
+                _LOGGER.info('3080')
             if json_data.has_key('Datas'):
-                _LOGGER.error('3080T')
+                _LOGGER.info('3080T')
     '''
     base = 'http://admin:admin@{}:{}/monitorjson'
     url = base.format(host, port)
@@ -119,7 +119,7 @@ async def discover(host, port) -> IamMeter:
             resp = await req.read()
     raw_json = resp.decode("utf-8")
     json_response = json.loads(raw_json)
-    _LOGGER.error(json_response)
+    #_LOGGER.error(json_response)
     '''
     '''
     for iammeter in REGISTRY:
