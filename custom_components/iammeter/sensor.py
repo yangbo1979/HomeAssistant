@@ -26,6 +26,7 @@ from collections import namedtuple
 import aiohttp
 import voluptuous as vol
 import async_timeout
+import requests
 
 class IamMeterError(Exception):
     """Indicates error communicating with iammeter"""
@@ -87,8 +88,40 @@ class IamMeter:
             in sensor_map.items()
         }
 '''
-
+async def fetch(url):
+    async with aiohttp.request("GET",url) as r:
+        #_LOGGER.error(r.status)
+        reponse = await r.text(encoding="utf-8")
+        #yield reponse
+        
 async def discover(host, port) -> IamMeter:
+    base = 'http://admin:admin@{}:{}/monitorjson'
+    url = base.format(host, port)
+    #_LOGGER.error(url)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            #print(resp.status)
+            json_data = await resp.json()
+            #_LOGGER.error(json_data)
+            #json_response = json.loads(json_data)
+            if json_data.has_key('data'):
+                _LOGGER.error('3162')
+            if json_data.has_key('Data'):
+                _LOGGER.error('3080')
+            if json_data.has_key('Datas'):
+                _LOGGER.error('3080T')
+    '''
+    base = 'http://admin:admin@{}:{}/monitorjson'
+    url = base.format(host, port)
+    #_LOGGER.error(url)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as req:
+            resp = await req.read()
+    raw_json = resp.decode("utf-8")
+    json_response = json.loads(raw_json)
+    _LOGGER.error(json_response)
+    '''
+    '''
     for iammeter in REGISTRY:
         i = iammeter(host, port)
         try:
@@ -96,6 +129,7 @@ async def discover(host, port) -> IamMeter:
             return i
         except IamMeterError:
             pass
+    '''
     raise DiscoveryError()
     
 class WEM3162(IamMeter):
@@ -122,6 +156,7 @@ class WEM3162(IamMeter):
 
     @classmethod
     async def make_request(cls, host, port=80):
+        '''
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
         async with aiohttp.ClientSession() as session:
@@ -129,6 +164,12 @@ class WEM3162(IamMeter):
                 resp = await req.read()
         raw_json = resp.decode("utf-8")
         json_response = json.loads(raw_json)
+        '''
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(host, port)
+        #_LOGGER.error(url)
+        resp = requests.get(url)
+        json_response = resp.json()
         #_LOGGER.error(json_response)
         response = cls.__schema(json_response)
         #_LOGGER.error(cls.map_response(response['data'], cls.__sensor_map))
@@ -172,6 +213,7 @@ class WEM3080(IamMeter):
 
     @classmethod
     async def make_request(cls, host, port=80):
+        '''
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
         #_LOGGER.error(url)
@@ -180,7 +222,13 @@ class WEM3080(IamMeter):
                 resp = await req.read()
         raw_json = resp.decode("utf-8")
         json_response = json.loads(raw_json)
-        _LOGGER.error(json_response)
+        '''
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(host, port)
+        #_LOGGER.error(url)
+        resp = requests.get(url)
+        json_response = resp.json()
+        #_LOGGER.error(json_response)
         response = cls.__schema(json_response)
         #_LOGGER.error(cls.map_response(response['Data'], cls.__sensor_map))
         cls.dev_type = "WEM3080"
@@ -245,6 +293,7 @@ class WEM3080T(IamMeter):
 
     @classmethod
     async def make_request(cls, host, port=80):
+        '''
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
         async with aiohttp.ClientSession() as session:
@@ -252,6 +301,12 @@ class WEM3080T(IamMeter):
                 resp = await req.read()
         raw_json = resp.decode("utf-8")
         json_response = json.loads(raw_json)
+        '''
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(host, port)
+        #_LOGGER.error(url)
+        resp = requests.get(url)
+        json_response = resp.json()
         #_LOGGER.error(json_response)
         response = cls.__schema(json_response)
         #_LOGGER.error(cls.map_response(response['Datas'], cls.__sensor_map))
@@ -312,8 +367,7 @@ class RealTimeAPI:
 
     async def get_data(self):
         """Query the real time API"""
-        return await rt_request(self.iammeter,
-                                3)
+        return await rt_request(self.iammeter,3)
 
 
 DEFAULT_PORT = 80
@@ -331,6 +385,69 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Platform setup."""
+    _LOGGER.info("setup:"+config[CONF_HOST])
+    try:
+        base = 'http://admin:admin@{}:{}/monitorjson'
+        url = base.format(config[CONF_HOST], config[CONF_PORT])
+        #_LOGGER.error(url)
+        resp = requests.get(url)
+        json_data = resp.json()
+        if 'SN' in json_data:
+            serial = json_data['SN']
+        if 'mac' in json_data:
+            mac = json_data['mac']
+    except:
+        raise PlatformNotReady
+    #_LOGGER.error(mac)
+    
+    
+    #_LOGGER.error(api.iammeter.dev_type)
+    devices = []
+    
+    if 'data' in json_data:
+        _LOGGER.info('3162')
+        api = RealTimeAPI(WEM3162(config[CONF_HOST], config[CONF_PORT]))
+        for sensor, (idx,unit) in api.iammeter.sensor_map().items():
+	        uid = f"{config[CONF_NAME]}-{idx}"
+	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+    if 'Data' in json_data:
+        _LOGGER.info('3080')
+        api = RealTimeAPI(WEM3080(config[CONF_HOST], config[CONF_PORT]))
+        for sensor, (idx, unit) in api.iammeter.sensor_map().items():
+	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{idx}"
+	        #_LOGGER.error(f"3080 uid:{uid}")
+	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+    if 'Datas' in json_data:
+        _LOGGER.info('3080T')
+        api = RealTimeAPI(WEM3080T(config[CONF_HOST], config[CONF_PORT]))
+        for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
+	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{row}-{idx}"
+	        #_LOGGER.error(f"3080T uid:{uid}")
+	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+
+    endpoint = RealTimeDataEndpoint(hass, api)
+    endpoint.ready.set()
+    hass.async_add_job(endpoint.async_refresh)
+    async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
+    endpoint.sensors = devices
+    async_add_entities(devices)
+    #_LOGGER.error(api.iammeter.dev_type)
+    '''
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            #print(resp.status)
+            json_data = await resp.json()
+            #_LOGGER.error(json_data)
+            #json_response = json.loads(json_data)
+            if json_data.has_key('data'):
+                _LOGGER.error('3162')
+            if json_data.has_key('Data'):
+                _LOGGER.error('3080')
+            if json_data.has_key('Datas'):
+                _LOGGER.error('3080T')
+    '''
+    
+    '''
     api = await real_time_api(config[CONF_HOST], config[CONF_PORT])
     endpoint = RealTimeDataEndpoint(hass, api)
     resp = await api.get_data()
@@ -356,6 +473,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
     endpoint.sensors = devices
     async_add_entities(devices)
+    '''
 
 
 class RealTimeDataEndpoint:
@@ -384,7 +502,7 @@ class RealTimeDataEndpoint:
         for sensor in self.sensors:
             if sensor.key in data:
                 sensor.value = data[sensor.key]
-                sensor.async_schedule_update_ha_state()
+                sensor.schedule_update_ha_state()
 
 
 class IamMeter(Entity):
