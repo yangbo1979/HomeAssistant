@@ -175,7 +175,9 @@ class WEM3162(IamMeter):
         #_LOGGER.error(cls.map_response(response['data'], cls.__sensor_map))
         cls.dev_type = "WEM3162"
         return IamMeterResponse(
-            data=cls.map_response(response['data'], cls.__sensor_map)
+            data=cls.map_response(response['data'], cls.__sensor_map),
+            serial_number="",
+            mac=""
         )
 
     @classmethod
@@ -409,7 +411,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         api = RealTimeAPI(WEM3162(config[CONF_HOST], config[CONF_PORT]))
         for sensor, (idx,unit) in api.iammeter.sensor_map().items():
 	        uid = f"{config[CONF_NAME]}-{idx}"
-	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+	        devices.append(IamMeter(uid, "",sensor, unit,config[CONF_NAME]))
     if 'Data' in json_data:
         _LOGGER.info('3080')
         api = RealTimeAPI(WEM3080(config[CONF_HOST], config[CONF_PORT]))
