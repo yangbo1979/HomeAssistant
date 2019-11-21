@@ -1,0 +1,8 @@
+{
+  "domain": "niu",
+  "name": "niu",
+  "documentation": "http://www.ikonke.com/",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": ["niu-scooter==0.0.5"]
+}
