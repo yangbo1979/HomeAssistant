@@ -79,15 +79,7 @@ class IamMeter:
         Return sensor map
         """
         raise NotImplementedError()
-'''
-    @staticmethod
-    def map_response(resp_data, sensor_map):
-        return {
-            f"{sensor_name}": resp_data[i]
-            for sensor_name, (i, _)
-            in sensor_map.items()
-        }
-'''
+
 async def fetch(url):
     async with aiohttp.request("GET",url) as r:
         #_LOGGER.error(r.status)
@@ -110,26 +102,6 @@ async def discover(host, port) -> IamMeter:
                 _LOGGER.info('3080')
             if json_data.has_key('Datas'):
                 _LOGGER.info('3080T')
-    '''
-    base = 'http://admin:admin@{}:{}/monitorjson'
-    url = base.format(host, port)
-    #_LOGGER.error(url)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as req:
-            resp = await req.read()
-    raw_json = resp.decode("utf-8")
-    json_response = json.loads(raw_json)
-    #_LOGGER.error(json_response)
-    '''
-    '''
-    for iammeter in REGISTRY:
-        i = iammeter(host, port)
-        try:
-            await i.get_data()
-            return i
-        except IamMeterError:
-            pass
-    '''
     raise DiscoveryError()
     
 class WEM3162(IamMeter):
@@ -156,15 +128,6 @@ class WEM3162(IamMeter):
 
     @classmethod
     async def make_request(cls, host, port=80):
-        '''
-        base = 'http://admin:admin@{}:{}/monitorjson'
-        url = base.format(host, port)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as req:
-                resp = await req.read()
-        raw_json = resp.decode("utf-8")
-        json_response = json.loads(raw_json)
-        '''
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
         #_LOGGER.error(url)
@@ -215,16 +178,6 @@ class WEM3080(IamMeter):
 
     @classmethod
     async def make_request(cls, host, port=80):
-        '''
-        base = 'http://admin:admin@{}:{}/monitorjson'
-        url = base.format(host, port)
-        #_LOGGER.error(url)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as req:
-                resp = await req.read()
-        raw_json = resp.decode("utf-8")
-        json_response = json.loads(raw_json)
-        '''
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
         #_LOGGER.error(url)
@@ -264,7 +217,7 @@ class WEM3080T(IamMeter):
 
         'ExportGrid_A':             (0,4, 'kWh'),
         'Frequency_A':              (0,5, 'Hz'),
-        'PF_A':                     (0,6, '%'),
+        'PF_A':                     (0,6, ''),
 
         'Voltage_B':                (1,0, 'V'),
         'Current_B':                (1,1, 'A'),
@@ -273,7 +226,7 @@ class WEM3080T(IamMeter):
 
         'ExportGrid_B':             (1,4, 'kWh'),
         'Frequency_B':              (1,5, 'Hz'),
-        'PF_B':                     (1,6, '%'),
+        'PF_B':                     (1,6, ''),
         
         'Voltage_C':                (2,0, 'V'),
         'Current_C':                (2,1, 'A'),
@@ -282,7 +235,7 @@ class WEM3080T(IamMeter):
 
         'ExportGrid_C':             (2,4, 'kWh'),
         'Frequency_C':              (2,5, 'Hz'),
-        'PF_C':                     (2,6, '%'),
+        'PF_C':                     (2,6, ''),
     }
     
     @staticmethod
@@ -295,15 +248,6 @@ class WEM3080T(IamMeter):
 
     @classmethod
     async def make_request(cls, host, port=80):
-        '''
-        base = 'http://admin:admin@{}:{}/monitorjson'
-        url = base.format(host, port)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as req:
-                resp = await req.read()
-        raw_json = resp.decode("utf-8")
-        json_response = json.loads(raw_json)
-        '''
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(host, port)
         #_LOGGER.error(url)
@@ -433,49 +377,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
     endpoint.sensors = devices
     async_add_entities(devices)
-    #_LOGGER.error(api.iammeter.dev_type)
-    '''
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            #print(resp.status)
-            json_data = await resp.json()
-            #_LOGGER.error(json_data)
-            #json_response = json.loads(json_data)
-            if json_data.has_key('data'):
-                _LOGGER.error('3162')
-            if json_data.has_key('Data'):
-                _LOGGER.error('3080')
-            if json_data.has_key('Datas'):
-                _LOGGER.error('3080T')
-    '''
-    
-    '''
-    api = await real_time_api(config[CONF_HOST], config[CONF_PORT])
-    endpoint = RealTimeDataEndpoint(hass, api)
-    resp = await api.get_data()
-    serial = resp.serial_number
-    mac = resp.mac
-    hass.async_add_job(endpoint.async_refresh)
-    async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
-    #_LOGGER.error(api.iammeter.dev_type)
-    devices = []
-    if api.iammeter.dev_type == "WEM3080":
-	    for sensor, (idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{idx}"
-	        #_LOGGER.error(f"3080 uid:{uid}")
-	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
-    if api.iammeter.dev_type == "WEM3080T":
-	    for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{row}-{idx}"
-	        #_LOGGER.error(f"3080T uid:{uid}")
-	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
-    if api.iammeter.dev_type == "WEM3162":
-	    for sensor, (idx,unit) in api.iammeter.sensor_map().items():
-	        uid = f"{config[CONF_NAME]}-{idx}"
-	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
-    endpoint.sensors = devices
-    async_add_entities(devices)
-    '''
 
 
 class RealTimeDataEndpoint:
