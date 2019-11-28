@@ -2,7 +2,7 @@
     "domain": "iammeter",
     "name": "IamMeter",
     "documentation": "",
-    "requirements": [],
+    "requirements": ["iammeter==0.0.5"],
     "dependencies": [],
     "codeowners": ["@yangbo1979"]
   }
