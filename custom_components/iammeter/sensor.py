@@ -40,6 +40,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         url = base.format(config[CONF_HOST], config[CONF_PORT])
         resp = requests.get(url)
         json_data = resp.json()
+        _LOGGER.error(json_data)
         if 'SN' in json_data:
             serial = json_data['SN']
         if 'mac' in json_data:
