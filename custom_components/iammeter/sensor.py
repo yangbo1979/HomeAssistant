@@ -3,15 +3,17 @@ import asyncio
 
 from datetime import timedelta
 import logging
+import iammeter
+from iammeter import power_meter
+from iammeter.power_meter import IamMeterError
+import requests
+import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 from homeassistant.const import CONF_PORT, CONF_NAME, CONF_HOST
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.event import async_track_time_interval
-import requests
-from iammeter.power_meter import IamMeterError
-import voluptuous as vol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,8 +32,6 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Platform setup."""
-    import iammeter
-    from iammeter import power_meter
     try:
         base = 'http://admin:admin@{}:{}/monitorjson'
         url = base.format(config[CONF_HOST], config[CONF_PORT])
@@ -42,8 +42,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             serial = json_data['SN']
         if 'mac' in json_data:
             mac = json_data['mac']
-    except Exception as e:
-        _LOGGER.error(e)
+    except Exception as err:
+        _LOGGER.error(err)
         raise PlatformNotReady
     devices = []
     if 'data' in json_data:
