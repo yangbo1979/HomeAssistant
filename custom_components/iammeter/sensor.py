@@ -3,18 +3,15 @@ import asyncio
 
 from datetime import timedelta
 import logging
-
-import voluptuous as vol
-
-from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT ,CONF_NAME,CONF_HOST
-from homeassistant.helpers.entity import Entity
 import homeassistant.helpers.config_validation as cv
+from homeassistant.const import CONF_PORT, CONF_NAME, CONF_HOST
+from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.event import async_track_time_interval
-import json
-from collections import namedtuple
 import requests
+from iammeter.power_meter import IamMeterError
+import voluptuous as vol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,30 +45,25 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     except Exception as e:
         _LOGGER.error(e)
         raise PlatformNotReady
-    #_LOGGER.error(mac)
-    
     devices = []
-    
     if 'data' in json_data:
         _LOGGER.info('3162')
         api = iammeter.RealTimeAPI(power_meter.WEM3162(config[CONF_HOST], config[CONF_PORT]))
-        for sensor, (idx,unit) in api.iammeter.sensor_map().items():
-	        uid = f"{config[CONF_NAME]}-{idx}"
-	        devices.append(IamMeter(uid, "",sensor, unit,config[CONF_NAME]))
+        for sensor, (idx, unit) in api.iammeter.sensor_map().items():
+            uid = f"{config[CONF_NAME]}-{idx}"
+            devices.append(IamMeter(uid, "", sensor, unit, config[CONF_NAME]))
     if 'Data' in json_data:
         _LOGGER.info('3080')
         api = iammeter.RealTimeAPI(power_meter.WEM3080(config[CONF_HOST], config[CONF_PORT]))
         for sensor, (idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{idx}"
-	        #_LOGGER.error(f"3080 uid:{uid}")
-	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+            uid = f"{config[CONF_NAME]}-{mac}-{serial}-{idx}"
+            devices.append(IamMeter(uid, serial, sensor, unit, config[CONF_NAME]))
     if 'Datas' in json_data:
         _LOGGER.info('3080T')
         api = iammeter.RealTimeAPI(power_meter.WEM3080T(config[CONF_HOST], config[CONF_PORT]))
-        for sensor, (row,idx, unit) in api.iammeter.sensor_map().items():
-	        uid = f"{config[CONF_NAME]}-{mac}-{serial}-{row}-{idx}"
-	        #_LOGGER.error(f"3080T uid:{uid}")
-	        devices.append(IamMeter(uid, serial, sensor, unit,config[CONF_NAME]))
+        for sensor, (row, idx, unit) in api.iammeter.sensor_map().items():
+            uid = f"{config[CONF_NAME]}-{mac}-{serial}-{row}-{idx}"
+            devices.append(IamMeter(uid, serial, sensor, unit, config[CONF_NAME]))
 
     endpoint = RealTimeDataEndpoint(hass, api)
     endpoint.ready.set()
@@ -92,9 +84,7 @@ class RealTimeDataEndpoint:
         self.sensors = []
 
     async def async_refresh(self, now=None):
-        """Fetch new state data for the sensor.
-        This is the only method that should fetch new data for Home Assistant.
-        """
+        """Fetch new state data for the sensor.This is the only method that should fetch new data for Home Assistant."""
         try:
             api_response = await self.api.get_data()
             self.ready.set()
@@ -113,7 +103,7 @@ class RealTimeDataEndpoint:
 class IamMeter(Entity):
     """Class for a sensor."""
 
-    def __init__(self, uid, serial, key, unit,dev_name):
+    def __init__(self, uid, serial, key, unit, dev_name):
         """Initialize an iammeter sensor."""
         self.uid = uid
         self.serial = serial
@@ -137,9 +127,10 @@ class IamMeter(Entity):
     def name(self):
         """Name of this iammeter attribute."""
         return f"{self.dev_name} {self.key}"
-        
+
     @property
     def icon(self):
+        """Icon for each sensor."""
         return "mdi:flash"
 
     @property
@@ -150,4 +141,4 @@ class IamMeter(Entity):
     @property
     def should_poll(self):
         """No polling needed."""
-        return False                                                                                                                                                                                                                                                                                          
+        return False
